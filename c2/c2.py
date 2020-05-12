@@ -22,6 +22,27 @@ class Controller:
         self.server.listen(5)
         self.selector.register(self.server, selectors.EVENT_READ, self.accept)
 
+    
+    def type_determination(self, conn, mask):
+        '''Determine if operator/agent'''
+        try:
+            identity = conn.recv(1024).decode().rstrip()
+        except BlockingIOError:
+            return
+
+        if identity == "agent":
+            print('agent')
+            self.selector.modify(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.data_agent)
+            
+        elif identity == "operator":
+            print('ops')
+            self.selector.modify(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.data_ops)
+
+        else:
+            print("invalid:", identity)
+            self.selector.unregister(conn)
+            conn.close()
+
 
     def data_agent(self, conn, mask):
         try:
@@ -30,7 +51,21 @@ class Controller:
             return
 
         if data:
-            print("received", data,"from", conn)
+            print("agent received", data,"from", conn)
+        else:
+            print("closing", conn)
+            self.selector.unregister(conn)
+            conn.close()
+
+
+    def data_ops(self, conn, mask):
+        try:
+            data = conn.recv(1024)
+        except BlockingIOError:
+            return
+
+        if data:
+            print("ops received", data,"from", conn)
         else:
             print("closing", conn)
             self.selector.unregister(conn)
@@ -41,8 +76,7 @@ class Controller:
         conn, addr = sock.accept()
         print('accepted', conn, 'from', addr)        
         conn.setblocking(False)
-        #TODO: Read to determine if operator/agent
-        self.selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.data_agent)
+        self.selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.type_determination)
 
 
     def handle_agents(self):
