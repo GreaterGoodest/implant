@@ -7,12 +7,11 @@ import sys
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from protocol.command_pb2 import Command
-from agent import Agent
-from operator import Operator
+from entities import Agent, Operator
 
 
 class Controller:
-    def __init__(self, interface='0', port=9999, backlog=5):
+    def __init__(self, interface='127.1', port=1337, backlog=5):
         self.selector = selectors.DefaultSelector()
 
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -27,32 +26,13 @@ class Controller:
         self.operators = {}
 
     
-    def type_determination(self, conn, mask):
-        '''Determine if operator/agent'''
-        try:
-            identity = conn.recv(1024).decode().rstrip()
-        except BlockingIOError:
-            return
-
-        if identity == "agent":
-            self.selector.modify(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.data_agent)
-            next_agent_id = len(self.agents)
-            agent = Agent(conn, next_agent_id)
-            self.agents[next_agent_id] = agent
-            
-        else:
-            print("invalid:", identity)
-            self.selector.unregister(conn)
-            conn.close()
-
-    
     def controller_comm(self, conn, data):
         data = data.split(" ")
-        if data[0] = "listen":
+        if data[0] == "listen":
             agent_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             agent_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             agent_sock.setblocking(False)
-            agent_address = (data[1], data[2])
+            agent_address = (data[1], int(data[2]))
             agent_sock.bind(agent_address)
             agent_sock.listen(1)
             self.selector.register(agent_sock, selectors.EVENT_READ, self.accept_agent)
@@ -90,10 +70,20 @@ class Controller:
             self.selector.unregister(conn)
             conn.close()
 
+    
+    def accept_agent(self, sock, mask):
+        conn, addr = sock.accept()
+        print('accepted agent', conn, 'from', addr)        
+
+        agent = Agent(conn, len(self.agents))
+        self.agents[hash(conn)] = agent 
+        conn.setblocking(False)
+        self.selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.data_agent)
+
 
     def accept_ops(self, sock, mask):
         conn, addr = sock.accept()
-        print('accepted', conn, 'from', addr)        
+        print('accepted ops', conn, 'from', addr)        
 
         operator = Operator(conn)
         self.operators[hash(conn)] = operator 
