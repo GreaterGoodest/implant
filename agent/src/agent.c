@@ -46,13 +46,13 @@ void interpreter(int sockfd, int child_pipe)
     struct sockaddr_in client_addr;
     socklen_t cli_len;
     char buf[BUFFER_SIZE];
-    memset(buf, 0, sizeof(buf));
     int recvlen = 0;
 
     char *command = "test";
 
     for (;;)
     {
+        memset(buf, 0, sizeof(buf));
 
         recvlen = recvfrom(sockfd, buf, BUFFER_SIZE, 0, (struct sockaddr *) &client_addr, &cli_len);
         if (recvlen == 0)
