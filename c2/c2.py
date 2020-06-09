@@ -1,4 +1,4 @@
-#!/bin/python3.7
+#!/bin/python3.8
 import selectors
 import socket
 from pathlib import Path
@@ -28,7 +28,7 @@ class Controller:
     
     def controller_comm(self, conn, data):
         data = data.split(" ")
-        if data[0] == "listen":
+        if data[0] == "listen" and len(data) == 3:
             agent_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             agent_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             agent_sock.setblocking(False)
