@@ -47,14 +47,15 @@ void interpreter(int sockfd, int child_pipe)
     socklen_t cli_len;
     char buf[BUFFER_SIZE];
     int recvlen = 0;
+    ssize_t read_len = 0;
 
     char *command = "test";
 
     for (;;)
     {
-        memset(buf, 0, sizeof(buf));
+        memset(buf, 0, BUFFER_SIZE);
 
-        recvlen = recvfrom(sockfd, buf, BUFFER_SIZE, 0, (struct sockaddr *) &client_addr, &cli_len);
+        recvlen = read(sockfd, buf, BUFFER_SIZE);
         if (recvlen == 0)
         {
             return;
@@ -65,13 +66,21 @@ void interpreter(int sockfd, int child_pipe)
             exit(EXIT_FAILURE);
         }
 
+        /* 
+        Check for known command
+        If unknown command, forward to shell for interpretation
+        */
         if (strncmp(buf, command, strlen(command)) == 0)
         {
             puts("match!");
         }
         else
         {
-            puts("forward");
+            write(child_pipe, buf, strlen(buf));
+            memset(buf, 0, BUFFER_SIZE);
+            
+            read_len = read(child_pipe, buf, BUFFER_SIZE);
+            write(sockfd, buf, read_len);
         }
         
     }
