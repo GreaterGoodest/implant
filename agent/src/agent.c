@@ -48,11 +48,13 @@ int shell_setup(int s)
     return sp[1];
 }
 
-bool exec_command(char *command)
+bool exec_command(const char *command, char *result)
 {
-    char *check = "test";
+    const char *check = "test";
+    const char *match_output = "matching command found!\n"; 
     if (!strncmp(command, check, strlen(check)))
     {
+        strncpy(result, match_output, BUFFER_SIZE); 
         return true;
     }
     else
@@ -92,10 +94,11 @@ void interpreter(int sockfd, int shell_pipe)
         }
         if (strlen(shell_buf) > 0)
         {
-            if (exec_command(shell_buf))//known command succeeded
+            if (exec_command(shell_buf, sockfd_buf))//known command succeeded
             {
                 puts("match");
                 memset(shell_buf, 0, BUFFER_SIZE);
+                FD_SET(sockfd, &write_set);
             }
             else //unkown command, pass to shell for execution
             {
