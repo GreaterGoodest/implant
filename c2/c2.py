@@ -25,17 +25,26 @@ class Controller:
         self.agents = {}
         self.operators = {}
 
+    def list_agents(self):
+        for hashed, agent in self.agents.items():
+            print(agent)
+
     
     def controller_comm(self, conn, data):
         data = data.split(" ")
         if data[0] == "listen" and len(data) == 3:
+            ip = data[1]
+            port = int(data[2])
+            print(f"listening on {ip} {port}")
             agent_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             agent_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             agent_sock.setblocking(False)
-            agent_address = (data[1], int(data[2]))
+            agent_address = (ip, port)
             agent_sock.bind(agent_address)
             agent_sock.listen(1)
             self.selector.register(agent_sock, selectors.EVENT_READ, self.accept_agent)
+        elif data[0] == "agents":
+            self.list_agents()
 
 
     def data_agent(self, conn, mask):
@@ -74,7 +83,6 @@ class Controller:
     def accept_agent(self, sock, mask):
         conn, addr = sock.accept()
         print('accepted agent', conn, 'from', addr)        
-
         agent = Agent(conn, len(self.agents))
         self.agents[hash(conn)] = agent 
         conn.setblocking(False)
