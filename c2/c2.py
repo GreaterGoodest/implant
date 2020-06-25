@@ -20,17 +20,19 @@ class Controller:
         self.server_address = (interface, port)
         self.server.bind(self.server_address)
         self.server.listen(backlog)
-        self.selector.register(self.server, selectors.EVENT_READ, self.accept_ops)
+        self.selector.register(self.server, selectors.EVENT_READ, self.__accept_ops)
 
         self.agents = {}
         self.operators = {}
 
-    def list_agents(self):
+
+    def __list_agents(self):
+        agents = [()]
         for hashed, agent in self.agents.items():
             print(agent)
 
     
-    def controller_comm(self, conn, data):
+    def __controller_comm(self, conn, data):
         data = data.split(" ")
         if data[0] == "listen" and len(data) == 3:
             ip = data[1]
@@ -42,12 +44,12 @@ class Controller:
             agent_address = (ip, port)
             agent_sock.bind(agent_address)
             agent_sock.listen(1)
-            self.selector.register(agent_sock, selectors.EVENT_READ, self.accept_agent)
+            self.selector.register(agent_sock, selectors.EVENT_READ, self.__accept_agent)
         elif data[0] == "agents":
-            self.list_agents()
+            self.__list_agents()
 
 
-    def data_agent(self, conn, mask):
+    def __data_agent(self, conn, mask):
         try:
             data = conn.recv(1024).decode().rstrip()
         except BlockingIOError:
@@ -61,7 +63,7 @@ class Controller:
             conn.close()
 
 
-    def data_ops(self, conn, mask):
+    def __data_ops(self, conn, mask):
         try:
             data = conn.recv(1024).decode().rstrip()
         except BlockingIOError:
@@ -71,7 +73,7 @@ class Controller:
             print("ops received", data,"from", conn)
             operator = self.operators[hash(conn)]
             if not operator.agent:
-                self.controller_comm(conn, data)
+                self.__controller_comm(conn, data)
             else:
                 self.ops_to_agent(conn, data)
         else:
@@ -80,23 +82,23 @@ class Controller:
             conn.close()
 
     
-    def accept_agent(self, sock, mask):
+    def __accept_agent(self, sock, mask):
         conn, addr = sock.accept()
         print('accepted agent', conn, 'from', addr)        
         agent = Agent(conn, len(self.agents))
         self.agents[hash(conn)] = agent 
         conn.setblocking(False)
-        self.selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.data_agent)
+        self.selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.__data_agent)
 
 
-    def accept_ops(self, sock, mask):
+    def __accept_ops(self, sock, mask):
         conn, addr = sock.accept()
         print('accepted ops', conn, 'from', addr)        
 
         operator = Operator(conn)
         self.operators[hash(conn)] = operator 
         conn.setblocking(False)
-        self.selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.data_ops)
+        self.selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.__data_ops)
 
 
     def handle_agents(self):
@@ -107,11 +109,11 @@ class Controller:
                 callback(key.fileobj, mask)
 
 
-    def ops_to_agent(self, agent, command):
+    def __ops_to_agent(self, agent, command):
         pass 
 
 
-    def receive_data(self, agent):
+    def __receive_data(self, agent):
         pass
 
 
