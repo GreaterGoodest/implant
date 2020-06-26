@@ -26,11 +26,14 @@ class Controller:
         self.operators = {}
 
 
-    def __list_agents(self):
-        agents = [()]
+    def __list_agents(self, conn):
+        operator = self.operators[hash(conn)]
+        agents = ""
         for hashed, agent in self.agents.items():
-            print(agent)
-
+            agent_bytes = f"{agent.id}, {agent.conn.getpeername()[0]}, {agent.conn.getpeername()[1]}\n"
+            agents += agent_bytes
+        operator.data_q.append(agents)
+        
     
     def __controller_comm(self, conn, data):
         data = data.split(" ")
@@ -46,7 +49,7 @@ class Controller:
             agent_sock.listen(1)
             self.selector.register(agent_sock, selectors.EVENT_READ, self.__accept_agent)
         elif data[0] == "agents":
-            self.__list_agents()
+            self.__list_agents(conn)
 
 
     def __data_agent(self, conn, mask):
@@ -64,22 +67,26 @@ class Controller:
 
 
     def __data_ops(self, conn, mask):
-        try:
+        
+        operator = self.operators[hash(conn)]
+        if mask & selectors.EVENT_READ:
             data = conn.recv(1024).decode().rstrip()
-        except BlockingIOError:
-            return
 
-        if data:
-            print("ops received", data,"from", conn)
-            operator = self.operators[hash(conn)]
-            if not operator.agent:
-                self.__controller_comm(conn, data)
+            if data:
+                print("ops received", data,"from", conn)
+                if not operator.agent:
+                    self.__controller_comm(conn, data)
+                else:
+                    self.ops_to_agent(conn, data)
             else:
-                self.ops_to_agent(conn, data)
-        else:
-            print("closing", conn)
-            self.selector.unregister(conn)
-            conn.close()
+                print("closing", conn)
+                self.selector.unregister(conn)
+                conn.close()
+        
+        elif mask & selectors.EVENT_WRITE and len(operator.data_q):
+            data = operator.data_q.popleft()
+            conn.send(data.encode())     
+        
 
     
     def __accept_agent(self, sock, mask):
