@@ -22,8 +22,9 @@ class Controller:
         self.server.listen(backlog)
         self.selector.register(self.server, selectors.EVENT_READ, self.__accept_ops)
 
-        self.agents = {}
-        self.operators = {}
+        self.agents = {} #reference agent by hashed connection
+        self.agent_ids = {} #reference agent by id
+        self.operators = {} #reference operator by hashed connection
 
 
     def __list_agents(self, conn):
@@ -33,6 +34,19 @@ class Controller:
             agent_bytes = f"{agent.id}, {agent.conn.getpeername()[0]}, {agent.conn.getpeername()[1]}\n"
             agents += agent_bytes
         operator.data_q.append(agents)
+
+
+    def __attach_sessions(self, conn, data):
+        operator = self.operators[hash(conn)]
+        agent_id = int(data[1])
+        if agent_id in self.agent_ids:
+            agent = self.agent_ids[agent_id]
+            operator.agent = agent
+            agent.operator = operator
+            operator.data_q.append(f"Connected to agent {agent_id}\n")
+
+        else:
+            operator.data_q.append("No valid agent found")
         
     
     def __controller_comm(self, conn, data):
@@ -50,25 +64,37 @@ class Controller:
             self.selector.register(agent_sock, selectors.EVENT_READ, self.__accept_agent)
         elif data[0] == "agents":
             self.__list_agents(conn)
+        elif data[0] == "attach":
+            self.__attach_sessions(conn, data)
+        
 
 
     def __data_agent(self, conn, mask):
-        try:
-            data = conn.recv(1024).decode().rstrip()
-        except BlockingIOError:
-            return
+        agent = self.agents[hash(conn)]
+        operator = agent.operator
+        if mask & selectors.EVENT_READ:
+            data = conn.recv(1024).decode()
+            if data:
+                print(data)
+                operator.data_q.append(data)
 
-        if data:
-            print("agent received", data, "from", conn)
-        else:
-            print("closing", conn)
-            self.selector.unregister(conn)
-            conn.close()
+            else:
+                print("closing", conn)
+                self.selector.unregister(conn)
+                conn.close()
+                self.agent_ids.pop(agent.id)
+                self.agents.pop(hash(conn))
+                operator.agent = None 
+
+        if mask & selectors.EVENT_WRITE and len(agent.data_q):
+            data = agent.data_q.popleft()
+            conn.send(data.encode())
 
 
     def __data_ops(self, conn, mask):
         
         operator = self.operators[hash(conn)]
+        agent = operator.agent
         if mask & selectors.EVENT_READ:
             data = conn.recv(1024).decode().rstrip()
 
@@ -76,23 +102,30 @@ class Controller:
                 print("ops received", data,"from", conn)
                 if not operator.agent:
                     self.__controller_comm(conn, data)
+                elif data == "exit":
+                    print(f"detaching operator from agent {agent.id}")
+                    operator.data_q.append(f"Detaching from agent {agent.id}\n")
+                    operator.agent = None
                 else:
-                    self.ops_to_agent(conn, data)
+                    data += '\n'
+                    agent.data_q.append(data)
+                    
             else:
                 print("closing", conn)
                 self.selector.unregister(conn)
+                self.operators.pop(hash(conn))
                 conn.close()
         
-        elif mask & selectors.EVENT_WRITE and len(operator.data_q):
+        if mask & selectors.EVENT_WRITE and len(operator.data_q):
             data = operator.data_q.popleft()
             conn.send(data.encode())     
         
-
     
     def __accept_agent(self, sock, mask):
         conn, addr = sock.accept()
         print('accepted agent', conn, 'from', addr)        
         agent = Agent(conn, len(self.agents))
+        self.agent_ids[len(self.agents)] = agent
         self.agents[hash(conn)] = agent 
         conn.setblocking(False)
         self.selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.__data_agent)
@@ -114,14 +147,6 @@ class Controller:
             for key, mask in events:
                 callback = key.data
                 callback(key.fileobj, mask)
-
-
-    def __ops_to_agent(self, agent, command):
-        pass 
-
-
-    def __receive_data(self, agent):
-        pass
 
 
 '''For testing'''

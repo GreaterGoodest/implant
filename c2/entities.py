@@ -4,6 +4,7 @@ class Agent:
         self.id = id_no
         self.conn = conn 
         self.data_q = deque()
+        self.operator = None
 
     def __str__(self):
         return f"id:{self.id} - host:{self.conn.getsockname()[0]} - port:{self.conn.getsockname()[1]}"

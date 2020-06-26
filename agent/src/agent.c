@@ -100,7 +100,7 @@ void interpreter(int sockfd, int shell_pipe)
                 memset(shell_buf, 0, BUFFER_SIZE);
                 FD_SET(sockfd, &write_set);
             }
-            else //unkown command, pass to shell for execution
+            else //unknown command, pass to shell for execution
             {
                 puts("***unknown");
                 FD_SET(shell_pipe, &write_set);
@@ -117,11 +117,13 @@ void interpreter(int sockfd, int shell_pipe)
         {
             write(sockfd, sockfd_buf, strlen(sockfd_buf));
             memset(sockfd_buf, 0, BUFFER_SIZE);        
+            FD_CLR(sockfd, &write_set);
         }
         if(FD_ISSET(shell_pipe, &write_set))
         {
             write(shell_pipe, shell_buf, strlen(shell_buf));
             memset(shell_buf, 0, BUFFER_SIZE);
+            FD_CLR(shell_pipe, &write_set);
         }
 
         if(FD_ISSET(sockfd, &read_set)) //socket ready to be read
