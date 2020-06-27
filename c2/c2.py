@@ -1,13 +1,12 @@
-#!/bin/python3.8
+#!/usr/bin/env python3
 import selectors
 import socket
+import sys
 from pathlib import Path
 
-import sys
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-
-from protocol.command_pb2 import Command
 from entities import Agent, Operator
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 
 class Controller:
@@ -31,8 +30,7 @@ class Controller:
         operator = self.operators[hash(conn)]
         agents = ""
         for hashed, agent in self.agents.items():
-            agent_bytes = f"{agent.id}, {agent.conn.getpeername()[0]}, {agent.conn.getpeername()[1]}\n"
-            agents += agent_bytes
+            agents += str(agent)
         operator.data_q.append(agents)
 
 
@@ -66,7 +64,6 @@ class Controller:
             self.__list_agents(conn)
         elif data[0] == "attach":
             self.__attach_sessions(conn, data)
-        
 
 
     def __data_agent(self, conn, mask):
@@ -75,7 +72,6 @@ class Controller:
         if mask & selectors.EVENT_READ:
             data = conn.recv(1024).decode()
             if data:
-                print(data)
                 operator.data_q.append(data)
 
             else:
@@ -99,7 +95,6 @@ class Controller:
             data = conn.recv(1024).decode().rstrip()
 
             if data:
-                print("ops received", data,"from", conn)
                 if not operator.agent:
                     self.__controller_comm(conn, data)
                 elif data == "exit":
@@ -148,12 +143,6 @@ class Controller:
                 callback = key.data
                 callback(key.fileobj, mask)
 
-
-'''For testing'''
-command = None
-with open('placeholder', 'rb') as f:
-    command = Command.FromString(f.read())
-'''For testing'''
 
 controller = Controller()
 controller.handle_agents()
