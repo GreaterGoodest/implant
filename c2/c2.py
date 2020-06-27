@@ -144,6 +144,6 @@ class Controller:
                 callback(key.fileobj, mask)
 
 
-controller = Controller()
-controller.handle_agents()
-
+if __name__ == "__main__":
+    controller = Controller()
+    controller.handle_agents()
