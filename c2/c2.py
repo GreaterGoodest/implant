@@ -18,22 +18,22 @@ class Controller:
 
     """
     def __init__(self, interface='127.1', port=1337, backlog=5):
-        self.__selector = selectors.DefaultSelector()
+        self._selector = selectors.DefaultSelector()
 
-        __server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        __server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        __server.setblocking(False)
-        __server_address = (interface, port)
-        __server.bind(__server_address)
-        __server.listen(backlog)
-        self.__selector.register(__server, selectors.EVENT_READ, self.__accept_ops)
+        _server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        _server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        _server.setblocking(False)
+        _server_address = (interface, port)
+        _server.bind(_server_address)
+        _server.listen(backlog)
+        self._selector.register(_server, selectors.EVENT_READ, self._accept_ops)
 
         self.agents = {} #reference agent by hashed connection
         self.agent_ids = {} #reference agent by id
         self.operators = {} #reference operator by hashed connection
 
 
-    def __list_agents(self, conn):
+    def _list_agents(self, conn):
         '''
         Sends the requesting operator a list of the available agent connections
 
@@ -47,7 +47,7 @@ class Controller:
         operator.data_q.append(agents)
 
 
-    def __attach_sessions(self, conn, data):
+    def _attach_sessions(self, conn, data):
         '''
         Connect the requesting operator to the specified agent ID by setting
         the operator's agent to the requested agent, and
@@ -69,7 +69,7 @@ class Controller:
             operator.data_q.append("No valid agent found")
         
     
-    def __controller_comm(self, conn, data):
+    def _controller_comm(self, conn, data):
         '''
         Catch all function for parsing commands that come from an operator
         who doesn't currently have an associated agent session.
@@ -92,16 +92,16 @@ class Controller:
             agent_address = (ip, port)
             agent_sock.bind(agent_address)
             agent_sock.listen(1)
-            self.__selector.register(agent_sock, selectors.EVENT_READ, self.__accept_agent)
+            self._selector.register(agent_sock, selectors.EVENT_READ, self._accept_agent)
         elif data[0] == "agents":
-            self.__list_agents(conn)
+            self._list_agents(conn)
         elif data[0] == "attach":
-            self.__attach_sessions(conn, data)
+            self._attach_sessions(conn, data)
         else:
             operator.data_q.append("Unknown controller command.\nOptions include: [listen, agents, attach]\n")
 
 
-    def __data_agent(self, conn, mask):
+    def _data_agent(self, conn, mask):
         '''
         Handles any data received from an agent session or destined to an agent
 
@@ -119,7 +119,7 @@ class Controller:
 
             else:
                 print("closing", conn)
-                self.__selector.unregister(conn)
+                self._selector.unregister(conn)
                 conn.close()
                 self.agent_ids.pop(agent.id)
                 self.agents.pop(hash(conn))
@@ -130,7 +130,7 @@ class Controller:
             conn.send(data.encode())
 
 
-    def __data_ops(self, conn, mask):
+    def _data_ops(self, conn, mask):
         '''
         Handles any data received from an operator session or destined to an operator 
 
@@ -145,7 +145,7 @@ class Controller:
 
             if data:
                 if not operator.agent:
-                    self.__controller_comm(conn, data)
+                    self._controller_comm(conn, data)
                 elif data == "exit":
                     print(f"detaching operator from agent {agent.id}")
                     operator.data_q.append(f"Detaching from agent {agent.id}\n")
@@ -156,7 +156,7 @@ class Controller:
                     
             else:
                 print("closing", conn)
-                self.__selector.unregister(conn)
+                self._selector.unregister(conn)
                 self.operators.pop(hash(conn))
                 conn.close()
         
@@ -165,7 +165,7 @@ class Controller:
             conn.send(data.encode())     
         
     
-    def __accept_agent(self, sock, mask):
+    def _accept_agent(self, sock, mask):
         '''
         Receives incoming agent connections and adds them to the selector
 
@@ -181,10 +181,10 @@ class Controller:
         self.agent_ids[len(self.agents)] = agent
         self.agents[hash(conn)] = agent 
 
-        self.__selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.__data_agent)
+        self._selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self._data_agent)
 
 
-    def __accept_ops(self, sock, mask):
+    def _accept_ops(self, sock, mask):
         '''
         Receives incoming ops connections and adds them to the selector
 
@@ -200,7 +200,7 @@ class Controller:
         operator = Operator(conn)
         self.operators[hash(conn)] = operator 
 
-        self.__selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.__data_ops)
+        self._selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self._data_ops)
 
 
     def run(self):
@@ -209,7 +209,7 @@ class Controller:
         Handles selector events
         '''
         while True:
-            events = self.__selector.select()
+            events = self._selector.select()
             for key, mask in events:
                 callback = key.data
                 callback(key.fileobj, mask)
