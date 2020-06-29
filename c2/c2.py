@@ -18,15 +18,15 @@ class Controller:
 
     """
     def __init__(self, interface='127.1', port=1337, backlog=5):
-        self.selector = selectors.DefaultSelector()
+        self.__selector = selectors.DefaultSelector()
 
-        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server.setblocking(False)
-        self.server_address = (interface, port)
-        self.server.bind(self.server_address)
-        self.server.listen(backlog)
-        self.selector.register(self.server, selectors.EVENT_READ, self.__accept_ops)
+        __server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        __server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        __server.setblocking(False)
+        __server_address = (interface, port)
+        __server.bind(__server_address)
+        __server.listen(backlog)
+        self.__selector.register(__server, selectors.EVENT_READ, self.__accept_ops)
 
         self.agents = {} #reference agent by hashed connection
         self.agent_ids = {} #reference agent by id
@@ -92,13 +92,13 @@ class Controller:
             agent_address = (ip, port)
             agent_sock.bind(agent_address)
             agent_sock.listen(1)
-            self.selector.register(agent_sock, selectors.EVENT_READ, self.__accept_agent)
+            self.__selector.register(agent_sock, selectors.EVENT_READ, self.__accept_agent)
         elif data[0] == "agents":
             self.__list_agents(conn)
         elif data[0] == "attach":
             self.__attach_sessions(conn, data)
         else:
-            operator.data_q.append("Unknown controller command.\nOptions include: [listen, agents, attach]")
+            operator.data_q.append("Unknown controller command.\nOptions include: [listen, agents, attach]\n")
 
 
     def __data_agent(self, conn, mask):
@@ -119,7 +119,7 @@ class Controller:
 
             else:
                 print("closing", conn)
-                self.selector.unregister(conn)
+                self.__selector.unregister(conn)
                 conn.close()
                 self.agent_ids.pop(agent.id)
                 self.agents.pop(hash(conn))
@@ -156,7 +156,7 @@ class Controller:
                     
             else:
                 print("closing", conn)
-                self.selector.unregister(conn)
+                self.__selector.unregister(conn)
                 self.operators.pop(hash(conn))
                 conn.close()
         
@@ -181,7 +181,7 @@ class Controller:
         self.agent_ids[len(self.agents)] = agent
         self.agents[hash(conn)] = agent 
 
-        self.selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.__data_agent)
+        self.__selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.__data_agent)
 
 
     def __accept_ops(self, sock, mask):
@@ -200,7 +200,7 @@ class Controller:
         operator = Operator(conn)
         self.operators[hash(conn)] = operator 
 
-        self.selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.__data_ops)
+        self.__selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self.__data_ops)
 
 
     def run(self):
@@ -209,7 +209,7 @@ class Controller:
         Handles selector events
         '''
         while True:
-            events = self.selector.select()
+            events = self.__selector.select()
             for key, mask in events:
                 callback = key.data
                 callback(key.fileobj, mask)
