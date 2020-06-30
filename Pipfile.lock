@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "50c0e1ea639eafa870deadeec39d89b6266a692ddb4791b26fe504ee7dd9289b"
+            "sha256": "e245da266e65eeb312339c5e8e449dbfb2c7dadd3e8ecb15ef3d797c8aa94f63"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -23,6 +23,10 @@
             ],
             "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
             "version": "==19.3.0"
+        },
+        "c2": {
+            "path": ".",
+            "version": "==0.1"
         },
         "coverage": {
             "hashes": [
@@ -141,6 +145,10 @@
             ],
             "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
             "version": "==19.3.0"
+        },
+        "c2": {
+            "path": ".",
+            "version": "==0.1"
         },
         "more-itertools": {
             "hashes": [

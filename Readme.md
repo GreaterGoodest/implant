@@ -1,4 +1,17 @@
-# Protobuff Installation - For when it's eventually integrated...
+# A basic implant framework
+
+pipenv shell
+
+## To use
+
+pipenv install
+
+## To dev
+
+pipenv install --dev -e .
+
+### Protobuff Installation - For when it's eventually integrated...
+
 Get latest protoc and unzip
 
     https://github.com/protocolbuffers/protobuf/releases/download/v3.11.4/protoc-3.11.4-linux-x86_64.zip

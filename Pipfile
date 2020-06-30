@@ -5,9 +5,11 @@ name = "pypi"
 
 [packages]
 pytest-cov = "*"
+c2 = {path = "."}
 
 [dev-packages]
 pytest = "*"
+c2 = {path = ".", editable = true}
 
 [requires]
 python_version = "3.8"
