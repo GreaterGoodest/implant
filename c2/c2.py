@@ -19,14 +19,9 @@ class Controller:
     """
     def __init__(self, interface='127.1', port=1337, backlog=5):
         self._selector = selectors.DefaultSelector()
-
-        _server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        _server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        _server.setblocking(False)
-        _server_address = (interface, port)
-        _server.bind(_server_address)
-        _server.listen(backlog)
-        self._selector.register(_server, selectors.EVENT_READ, self._accept_ops)
+        self._interface = interface
+        self._port = port
+        self._backlog = backlog
 
         self.agents = {} #reference agent by hashed connection
         self.agent_ids = {} #reference agent by id
@@ -203,11 +198,22 @@ class Controller:
         self._selector.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, self._data_ops)
 
 
+    def _setup_server(self):
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.setblocking(False)
+        server_address = (self._interface, self._port)
+        server.bind(server_address)
+        server.listen(self._backlog)
+        self._selector.register(server, selectors.EVENT_READ, self._accept_ops)
+
+
     def run(self):
         '''
         Initiates controller and begins listening on specified port for ops connections
         Handles selector events
         '''
+        self._setup_server()
         while True:
             events = self._selector.select()
             for key, mask in events:
