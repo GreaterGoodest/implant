@@ -12,7 +12,8 @@ class TestController:
 
 
     def test_list_agents(self, monkeypatch):
-        self.agents = {hash(self.agent_conn): entities.Agent(self.agent_conn, len(self.agents))}
+        test_agent = entities.Agent(self.agent_conn, len(self.agents))
         self.controller.operators = {hash(self.ops_conn): entities.Operator(self.ops_conn)}
+        self.controller.agents = {hash(self.agent_conn): test_agent}
         self.controller._list_agents(self.ops_conn)
         

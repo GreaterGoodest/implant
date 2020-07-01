@@ -4,7 +4,7 @@ import socket
 import sys
 from pathlib import Path
 
-from entities import Agent, Operator
+from c2.entities import Agent, Operator
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
