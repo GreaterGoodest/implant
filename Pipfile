@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 pytest-cov = "*"
 c2 = {path = "."}
+cmd2 = "*"
 
 [dev-packages]
 pytest = "*"
