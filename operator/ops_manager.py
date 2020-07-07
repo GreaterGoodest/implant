@@ -14,7 +14,17 @@ class OpsManager(cmd2.Cmd):
     def do_connect(self, args):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_address = args.host
-        server_port = args.port
+        server_port = int(args.port)
+
+        try:
+            server_socket.connect((server_address, server_port))
+        except:
+            self.perror("Failed to connect")
+            return
+
+        ops_buffer = ""
+        c2_buffer = ""
+        while ops_buffer != "disconnect\n"
 
 
 if __name__ == "__main__":
