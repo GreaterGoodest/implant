@@ -4,12 +4,6 @@ import cmd2
 import socket
 import sys
 
-class C2Manager(cmd2.Cmd):
-    def __init__(self, server_socket):
-        self.server_socket = server_socket
-    
-
-
 class OpsManager(cmd2.Cmd):
 
     connection_args = argparse.ArgumentParser(description="Connect to C2 Server")
@@ -24,14 +18,16 @@ class OpsManager(cmd2.Cmd):
 
         try:
             server_socket.connect((server_address, server_port))
-            c2_session = C2Manager(server_socket)
-            c2_session.cmdloop()
         except:
-            self.perror("Failed to connect")
+            self.perror("Failed to connect:" )
             return
+
+        while True:
+            server_socket.send(input().encode())
+            print(server_socket.recv(1024))
 
 
 if __name__ == "__main__":
     app = OpsManager()
-    sys.exit(app.cmdloop())
+    app.cmdloop()
         
