@@ -1,6 +1,11 @@
 from collections import deque
 
 class Entity:
+    """Parent class for all managed objects (Operator, Agent)
+
+
+
+    """
     def __init__(self, conn):
         self.conn = conn
         self.data_q = deque()
