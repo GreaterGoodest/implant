@@ -3,7 +3,9 @@ from collections import deque
 class Entity:
     """Parent class for all managed objects (Operator, Agent)
 
-
+    Attributes:
+        conn: connection associated with entity
+        data_q: data for delivery to entity
 
     """
     def __init__(self, conn):
