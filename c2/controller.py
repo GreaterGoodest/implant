@@ -109,16 +109,18 @@ class Controller:
 
         if mask & selectors.EVENT_READ:
             data = conn.recv(1024).decode()
+            print('data:', data)
             if data and operator:
                 operator.data_q.append(data)
 
-            else:
+            elif len(data) == 0:
                 print("closing", conn)
                 self._selector.unregister(conn)
                 conn.close()
                 self.agent_ids.pop(agent.id)
                 self.agents.pop(hash(conn))
-                operator.agent = None 
+                if operator:
+                    operator.agent = None 
 
         if mask & selectors.EVENT_WRITE and len(agent.data_q):
             data = agent.data_q.popleft()
