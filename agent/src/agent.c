@@ -119,7 +119,7 @@ int comm_c2(int sockfd, int master)
 {
     const int max_events = 5;
     int epfd, nfds, nb;
-    struct epoll_event ev[2], events[5];
+    struct epoll_event ev[2], events[max_events];
     unsigned char buf[BUFFER_SIZE];
     
     epfd = epoll_create(2);
