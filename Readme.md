@@ -1,3 +1,6 @@
+C2 Currently lacking functionality due to recent commit upgrading shell. C2 requires re-architecture.
+
+
 # A basic implant framework
 
 pipenv shell
